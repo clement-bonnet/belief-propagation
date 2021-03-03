@@ -4,7 +4,7 @@ import numpy as np
 from scipy.special import softmax
 
 
-# TODO : gerer MTT
+# TODO : gerer MTT _
 
 class Node:
     def __init__(self, name, node_type, dist=None, dist_index=None, nb_states=None):
