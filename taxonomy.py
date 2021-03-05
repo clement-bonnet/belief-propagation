@@ -5,6 +5,7 @@ import pandas as pd
 
 from graph import Node, Edge, Graph
 from processing import process_embedding_from_words
+from tqdm import tqdm
 
 
 def phi_edge(i, j, w, embedding, y=1):
@@ -21,7 +22,6 @@ def phi_edge(i, j, w, embedding, y=1):
         return np.exp(np.dot(w, features))
     else:
         return 1
-
 
 
 def build_graph(w, words, embedding):
@@ -57,6 +57,7 @@ def compute_belief_from_w(w, words, embedding):
     belief = graph.compute_belief_nodes()
     return belief
 
+
 def build_state(words, df_graph):
     state = {}
     for i, wordi in enumerate(words):
@@ -68,11 +69,13 @@ def build_state(words, df_graph):
             state[name_V] = df_graph.iloc[i, j]
     return state
 
+
 def proba_state(w, state, words, embedding):
     graph = build_graph(w, words, embedding)
     graph.belief_propagation()
     graph.compute_belief_nodes()
-    return graph.proba_state(state)
+    return graph.proba_state(state, asymetric_loss=10)
+
 
 def gradient_from_w(w, state, words, embedding, eps=1e-3):
     """
@@ -83,7 +86,7 @@ def gradient_from_w(w, state, words, embedding, eps=1e-3):
     """
     grad = np.zeros_like(w, dtype=np.float32)
     likelihood = proba_state(w, state, words, embedding)
-    for i, _ in enumerate(grad):
+    for i, _ in tqdm(enumerate(grad), total=len(w)):
         w_eps = w.copy()
         w_eps[i] += eps
         likelihood_eps = proba_state(w_eps, state, words, embedding)
@@ -93,14 +96,14 @@ def gradient_from_w(w, state, words, embedding, eps=1e-3):
 
 def plot_state_likelihood_and_gradient(state, words, embedding, W_X, W_Y):
     # plot feature embedding[0]
-    embedding = embedding[:,:,0].copy()
+    embedding = embedding[:, :, 0].copy()
 
     @np.vectorize
     def likelihood_from_coordinates(*w_i):
         w = np.array(w_i)
         likelihood = proba_state(w, state, words, embedding)
         return likelihood
-    
+
     @np.vectorize
     def norm_of_gradient_from_coordinates(*w_i):
         w = np.array(w_i)
@@ -120,8 +123,8 @@ def plot_state_likelihood_and_gradient(state, words, embedding, W_X, W_Y):
         L = L[:-1, :-1]
         left_x, right_x = W_X.min(), W_X.max()
         left_y, right_y = W_Y.min(), W_Y.max()
-        left_l, right_l  = -np.abs(L).max(), np.abs(L).max()
-        left_l, right_l  = L.min(), L.max()
+        left_l, right_l = -np.abs(L).max(), np.abs(L).max()
+        left_l, right_l = L.min(), L.max()
         L = ax.pcolormesh(W_X, W_Y, L, cmap='hot', vmin=left_l, vmax=right_l)
         ax.set_title(title, fontsize=16)
         ax.set_xlabel("$W_0$: offset", fontsize=14)
@@ -129,14 +132,14 @@ def plot_state_likelihood_and_gradient(state, words, embedding, W_X, W_Y):
         ax.axis([left_x, right_x, left_y, right_y])
         fig.colorbar(L, ax=ax)
 
-    figure, axes = plt.subplots(1, 2, figsize=(14,6))
+    figure, axes = plt.subplots(1, 2, figsize=(14, 6))
     plot_function(W_X, W_Y, figure, axes[0], "likelihood")
     plot_function(W_X, W_Y, figure, axes[1], "gradient")
     plt.tight_layout()
-    plt.show();
+    plt.show()
 
 
-def plot_nx_graph(w, words, embedding):
+def plot_nx_graph(w, words, embedding, verbose=False):
     G = nx.Graph()
     G.add_nodes_from(words)
     belief = compute_belief_from_w(w, words, embedding)
@@ -146,16 +149,16 @@ def plot_nx_graph(w, words, embedding):
                 continue
             name_V = f"V_{wordi}_{wordj}"
             proba_link = np.exp(belief[name_V][1])
-            if proba_link > 0.5: 
+            if verbose:
+                print(name_V, proba_link)
+            if proba_link > 0.5:
                 G.add_edge(wordi, wordj)
-    nx.draw(G, with_labels=True,pos=nx.spring_layout(G))
+    nx.draw(G, with_labels=True, pos=nx.spring_layout(G))
     return G
 
 
-
-
 class TaxonomyModule:
-    def __init__(self, nb_features=10):
+    def __init__(self, nb_features=102):
         self.w = np.random.randn(nb_features + 1)
 
     def train(self, train_df_graph, nb_epochs, lr):
@@ -173,32 +176,35 @@ class TaxonomyModule:
         test_embedd = process_embedding_from_words(test_words)
         belief = compute_belief_from_w(self.w, test_words, test_embedd)
         truth_graph = np.array(test_df_graph, dtype=bool)
-        inferred_graph = np.zeros((len(test_words), len(test_words)), dtype=bool)
+        inferred_graph = np.zeros(
+            (len(test_words), len(test_words)), dtype=bool)
         for i, wordi in enumerate(test_words):
             for j, wordj in enumerate(test_words):
                 if i == j:
                     continue
                 name_V = f"V_{wordi}_{wordj}"
                 proba_link = np.exp(belief[name_V][1])
-                if proba_link > 0.5: 
-                    inferred_graph[i,j] = 1
+                if proba_link > 0.5:
+                    inferred_graph[i, j] = 1
         tp = np.sum((inferred_graph == 1) & (truth_graph == 1))
         fp = np.sum((inferred_graph == 1) & (truth_graph == 0))
-        fn = np.sum((inferred_graph == 0) & (truth_graph == 1))        
+        fn = np.sum((inferred_graph == 0) & (truth_graph == 1))
         precision = tp/(tp+fp+eps)
         recall = tp/(tp+fn+eps)
         f1_score = 2 * (precision * recall) / (precision + recall + eps)
         return f1_score
-    
-    def infer_graph(self, test):
+
+    def infer_graph(self, test, verbose=False):
         """
         input: either a dataframe df_graph or a list of words
+        verbose : output probabilities of each link
         """
         if type(test) is pd.DataFrame:
             test_words = list(test.columns)
         elif type(test) is list:
             test_words = test
         else:
-            raise TypeError("input must be either a dataframe or a list of words")
+            raise TypeError(
+                "input must be either a dataframe or a list of words")
         test_embedd = process_embedding_from_words(test_words)
-        return plot_nx_graph(self.w, test_words, test_embedd)
+        return plot_nx_graph(self.w, test_words, test_embedd, verbose=verbose)
