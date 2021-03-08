@@ -185,6 +185,7 @@ class TaxonomyModule:
         self.train_embedd = None
         self.test_embedd = None
         self.nb_features = nb_features
+        self.losses = []
 
     def train(self, train_df_graph, nb_epochs, lr, bal_coef=1, verbose=True):
         """
@@ -199,20 +200,22 @@ class TaxonomyModule:
         train_state = build_state(train_words, train_df_graph)
 
         if lr is not None:
+            self.losses = []
             for epoch in tqdm(range(nb_epochs), disable=not verbose):
                 grad, likelihood = gradient_from_w(
                     self.w, train_state, train_words, self.train_embedd,
                     bal_coef=bal_coef, verbose=verbose)
                 self.w += lr*grad
+                self.losses.append(likelihood)
                 if verbose:
-                    print("[Epoch {}]: {:.2f}".format(epoch + 1, likelihood))
+                    print("[Epoch {}]: {:.3f}".format(epoch + 1, likelihood))
         else:
             def f(w):
                 return - proba_state(
                     w, train_state, train_words, self.train_embedd, bal_coef=bal_coef)
-
-            optimizer = ng.optimizers.NGOpt(
-                parametrization=self.nb_features, budget=nb_epochs, num_workers=4)
+            with NoPrint():
+                optimizer = ng.optimizers.NGOpt(
+                    parametrization=self.nb_features, budget=nb_epochs, num_workers=4)
             try:
                 verbosity = 2 if verbose else 0
                 recommendation = optimizer.minimize(f, verbosity=verbosity)
