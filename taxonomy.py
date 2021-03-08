@@ -168,8 +168,8 @@ def check_process_embedding_from_words(embedd, words):
 
 
 class TaxonomyModule:
-    def __init__(self, nb_features=103):
-        self.w = np.random.randn(nb_features + 1)
+    def __init__(self, nb_features):
+        self.w = np.random.randn(nb_features)
         self.train_embedd = None
         self.test_embedd = None
         self.nb_features = nb_features
