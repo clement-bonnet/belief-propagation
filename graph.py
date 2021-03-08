@@ -73,29 +73,44 @@ class Graph:
         # Vocab : INCOMING of a NODE
         # and ANTECEDENT of an EDGE
 
-        self.incoming_edges = {}  # maps name of the node to list of incoming edges
-        for name, node in dic_nodes.items():
-            incoming = [e for e in self.edges if e.nodes[1].name == name]
-            self.incoming_edges[name] = incoming
-        
-        self.antecedant_edges = []  # list of list of edges
-        for edge in self.edges:
-            self.antecedant_edges.append([
+        # self.incoming_edges = {}  # maps name of the node to list of incoming edges
+        # for name, node in dic_nodes.items():
+        #     incoming = [e for e in self.edges if e.nodes[1].name == name]
+        #     self.incoming_edges[name] = incoming
+        self.incoming_edges = {
+            name: [e for e in self.edges if e.nodes[1].name == name]
+            for name, _ in dic_nodes.items()}
+        self.antecedant_edges = [
+            [
                 ant_edge for ant_edge in self.edges
-                if (
-                    # antecedent property
-                    ant_edge.nodes[1].name == edge.nodes[0].name and
-                    # Not inverse edge
-                    ant_edge.nodes[0].name != edge.nodes[1].name
-                )
-            ])
-            if edge.nodes[0].node_type == "F":
-                if edge.nodes[0].dist != "MTT":
-                    # check number of antecedent + 1 equals tensor dimension of distribution
-                    assert len(
-                        self.antecedant_edges[-1]) + 1 == len(edge.nodes[0].dist_index)
-                    assert set(
-                        self.antecedant_edges[-1]).issubset(set(edge.nodes[0].dist_index))
+                    if (# antecedent property
+                        ant_edge.nodes[1].name == edge.nodes[0].name and
+                        # Not inverse edge
+                        ant_edge.nodes[0].name != edge.nodes[1].name)
+            ]
+            for edge in self.edges
+        ]
+    
+##########################################
+#       Old way of doing it
+        # self.antecedant_edges = []  # list of list of edges
+        # for edge in self.edges:
+        #     self.antecedant_edges.append([
+        #         ant_edge for ant_edge in self.edges
+        #         if (
+        #             # antecedent property
+        #             ant_edge.nodes[1].name == edge.nodes[0].name and
+        #             # Not inverse edge
+        #             ant_edge.nodes[0].name != edge.nodes[1].name
+        #         )
+        #     ])
+        #     if edge.nodes[0].node_type == "F":
+        #         if edge.nodes[0].dist != "MTT":
+        #             # check number of antecedent + 1 equals tensor dimension of distribution
+        #             assert len(
+        #                 self.antecedant_edges[-1]) + 1 == len(edge.nodes[0].dist_index)
+        #             assert set(
+        #                 self.antecedant_edges[-1]).issubset(set(edge.nodes[0].dist_index))
 
     def belief_propagation(self):
         # TODO: scheduling
