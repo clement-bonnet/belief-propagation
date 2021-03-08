@@ -22,7 +22,7 @@ class Node:
         self.node_type = node_type
         assert(node_type in ["F", "V"])
         if node_type == "F":
-            if dist != "MTT":
+            if type(dist) is not str: # "MTT"
                 assert dist is not None and dist_index is not None
                 assert dist.ndim == len(dist_index)
                 self.dist = np.log(dist)
@@ -77,7 +77,7 @@ class Graph:
         for name, node in dic_nodes.items():
             incoming = [e for e in self.edges if e.nodes[1].name == name]
             self.incoming_edges[name] = incoming
-
+        
         self.antecedant_edges = []  # list of list of edges
         for edge in self.edges:
             self.antecedant_edges.append([

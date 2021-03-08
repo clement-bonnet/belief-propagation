@@ -24,7 +24,7 @@ def build_df_from_words(words):
     return df
 
 
-def build_embedding(df):
+def build_embedding(df, verbose=False):
     """
     Build embedding matrix from dataframe of titles and abstracts
     input:
@@ -45,13 +45,18 @@ def build_embedding(df):
         abstract_list = nltk.word_tokenize(abstract1_str)
         return abstract_list
 
-    nb_features = 102  # embedding of world2vec is of dim 50
+    nb_features = 103  # embedding of world2vec is of dim 50
     embedding = np.zeros((len(df), len(df), nb_features))
 
-    print("Loading world2vec model...")
+    if verbose:
+        print("Loading world2vec model...")
     model = api.load("glove-wiki-gigaword-50")
-    print("Loaded.")
+    if verbose:
+        print("Loaded.")
     set_not_in_dic = set()
+
+    # Offset
+    embedding[:,:,0] = 1 # np.ones((len(df), len(df)))
 
     for i1, row1 in df.iterrows():
         for i2, row2 in df.iterrows():
@@ -73,19 +78,19 @@ def build_embedding(df):
 
             try:
                 embeding1 = model.word_vec(word1)
-                embedding[i1, i2, :50] = embeding1
+                embedding[i1, i2, 1:51] = embeding1
             except:
                 set_not_in_dic.add(word1)
 
             try:
                 embeding2 = model.word_vec(word2)
-                embedding[i1, i2, 50:100] = embeding2
+                embedding[i1, i2, 51:101] = embeding2
             except:
                 set_not_in_dic.add(word2)
 
             # 3.2.2 Wikipedia abstract features
             # Il faut créer un pandas avec les abstracts des articles contenant l'un des mots.
-            embedding[i1, i2, 100] = 1 if word1 in abstract2 else 0
+            embedding[i1, i2, 101] = 1 if word1 in abstract2 else 0
 
             # Presence and distance
             if word1 in abstract2 and word2 in abstract2:
@@ -99,14 +104,9 @@ def build_embedding(df):
                             [pos_word2 for pos_word2, word in enumerate(abstract2)
                                 if word == word2])
                      ])
-                embedding[i1, i2, 101] = 1 if distance < 20 else 0
-
-            # count
-
-            # min distance
-
-            # Patern
-    print("List of world not in world2vec:", set_not_in_dic)
+                embedding[i1, i2, 102] = 1 if distance < 20 else 0
+    if verbose:
+        print("List of world not in world2vec:", set_not_in_dic)
     return embedding
 
 
