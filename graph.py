@@ -135,7 +135,7 @@ class Graph:
                     )
                     target_state = index_dist[target_index]
                     edge.message[target_state] += (
-                        f + reduce(lambda x, y: x + y, messages, 0)
+                        reduce(lambda x, y: x + y, messages, f)
                     )
 
     def compute_belief_nodes(self):
@@ -156,17 +156,17 @@ class Graph:
         max_likelihood = list(map(lambda e: max(e), self.beliefs.values()))
         return reduce(lambda x, y: x + y, max_likelihood, 0)
 
-    def proba_state(self, states, asymetric_loss=1):
+    def proba_state(self, states, bal_coef=1):
         """
         states : dictionnary mapping the name of the nodes 
                 to the index of the state activivated for this node
 
-        asymetric_loss : weights of true link.
+        bal_coef : weights of true link. weight of false negatifs compared to false positifs
 
         returns : log proba
         """
         log_proba = 0
         for name, belief in self.beliefs.items():
-            coef = asymetric_loss if states[name] else 0
+            coef = bal_coef if states[name] else 1
             log_proba += coef * belief[states[name]]
         return log_proba

@@ -2,10 +2,11 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
+import nevergrad as ng
+from tqdm import tqdm
 
 from graph import Node, Edge, Graph
 from processing import process_embedding_from_words
-from tqdm import tqdm
 
 
 def phi_edge(i, j, w, embedding, y=1):
@@ -74,10 +75,10 @@ def proba_state(w, state, words, embedding):
     graph = build_graph(w, words, embedding)
     graph.belief_propagation()
     graph.compute_belief_nodes()
-    return graph.proba_state(state, asymetric_loss=10)
+    return graph.proba_state(state, bal_coef=1)
 
 
-def gradient_from_w(w, state, words, embedding, eps=1e-3):
+def gradient_from_w(w, state, words, embedding, eps=1e-3, verbose=True):
     """
     Compute the gradient of the log max_likelihood with respect to w.
     output:
@@ -86,7 +87,8 @@ def gradient_from_w(w, state, words, embedding, eps=1e-3):
     """
     grad = np.zeros_like(w, dtype=np.float32)
     likelihood = proba_state(w, state, words, embedding)
-    for i, _ in tqdm(enumerate(grad), total=len(w)):
+
+    for i, _ in tqdm(enumerate(grad), total=len(w), disable=not verbose):
         w_eps = w.copy()
         w_eps[i] += eps
         likelihood_eps = proba_state(w_eps, state, words, embedding)
@@ -107,7 +109,7 @@ def plot_state_likelihood_and_gradient(state, words, embedding, W_X, W_Y):
     @np.vectorize
     def norm_of_gradient_from_coordinates(*w_i):
         w = np.array(w_i)
-        grad, _ = gradient_from_w(w, state, words, embedding)
+        grad, _ = gradient_from_w(w, state, words, embedding, verbose=False)
         return np.linalg.norm(grad)
 
     def plot_function(W_X, W_Y, fig, ax, func):
@@ -157,24 +159,60 @@ def plot_nx_graph(w, words, embedding, verbose=False):
     return G
 
 
+def check_process_embedding_from_words(embedd, words):
+    if embedd is None:
+        return process_embedding_from_words(words)
+    else:
+        print("Embedding already charged")
+        return embedd
+
+
 class TaxonomyModule:
-    def __init__(self, nb_features=102):
+    def __init__(self, nb_features=103):
         self.w = np.random.randn(nb_features + 1)
+        self.train_embedd = None
+        self.test_embedd = None
+        self.nb_features = nb_features
 
     def train(self, train_df_graph, nb_epochs, lr):
+        """
+        if lr = None : uses nevergrad
+        """
         train_words = list(train_df_graph.columns)
-        train_embedd = process_embedding_from_words(train_words)
+
+        self.train_embedd = check_process_embedding_from_words(
+            self.train_embedd, train_words)
+
         train_state = build_state(train_words, train_df_graph)
-        for epoch in range(nb_epochs):
-            grad, likelihood = gradient_from_w(
-                self.w, train_state, train_words, train_embedd)
-            self.w += lr*grad
-            print("[Epoch {}]: {:.2f}".format(epoch + 1, likelihood))
+
+        if lr is not None:
+            for epoch in range(nb_epochs):
+                grad, likelihood = gradient_from_w(
+                    self.w, train_state, train_words, self.train_embedd)
+                self.w += lr*grad
+                print("[Epoch {}]: {:.2f}".format(epoch + 1, likelihood))
+        else:
+
+            def f(w):
+                return - proba_state(w, train_state, train_words, self.train_embedd)
+
+            optimizer = ng.optimizers.NGOpt(
+                parametrization=self.nb_features, budget=nb_epochs, num_workers=3)
+            try:
+                recommendation = optimizer.minimize(f, verbosity=1)
+            except KeyboardInterrupt:
+                self.w = optimizer.provide_recommendation()
+
+            self.w = recommendation.value
 
     def f1_score(self, test_df_graph, eps=1e-8):
         test_words = list(test_df_graph.columns)
-        test_embedd = process_embedding_from_words(test_words)
-        belief = compute_belief_from_w(self.w, test_words, test_embedd)
+
+        # to do enlever : mais c'est plus rapide comme ça pour l'instant
+        self.test_embedd = check_process_embedding_from_words(
+            self.test_embedd, test_words)
+
+        belief = compute_belief_from_w(self.w, test_words, self.test_embedd)
         truth_graph = np.array(test_df_graph, dtype=bool)
         inferred_graph = np.zeros(
             (len(test_words), len(test_words)), dtype=bool)
@@ -206,5 +244,8 @@ class TaxonomyModule:
         else:
             raise TypeError(
                 "input must be either a dataframe or a list of words")
-        test_embedd = process_embedding_from_words(test_words)
-        return plot_nx_graph(self.w, test_words, test_embedd, verbose=verbose)
+
+        self.test_embedd = check_process_embedding_from_words(
+            self.test_embedd, test_words)
+
+        return plot_nx_graph(self.w, test_words, self.test_embedd, verbose=verbose)
