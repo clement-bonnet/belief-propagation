@@ -2,6 +2,7 @@ from functools import reduce
 
 import numpy as np
 from scipy.special import softmax
+import networkx as nx
 
 
 # TODO : gerer MTT _
@@ -22,7 +23,7 @@ class Node:
         self.node_type = node_type
         assert(node_type in ["F", "V"])
         if node_type == "F":
-            if type(dist) is not str: # "MTT"
+            if type(dist) is not str:  # "MTT"
                 assert dist is not None and dist_index is not None
                 assert dist.ndim == len(dist_index)
                 self.dist = np.log(dist)
@@ -50,6 +51,10 @@ class Edge:
         self.nb_variable = node_2.nb_states if self.F_to_V else node_1.nb_states
         # Convention: messages are log_messages
         self.message = np.zeros(self.nb_variable)
+
+    def __repr__(self):
+        node1, node2 = self.nodes
+        return f"({node1.name} -> {node2.name})"
 
 
 class Graph:
@@ -83,14 +88,14 @@ class Graph:
         self.antecedant_edges = [
             [
                 ant_edge for ant_edge in self.edges
-                    if (# antecedent property
-                        ant_edge.nodes[1].name == edge.nodes[0].name and
-                        # Not inverse edge
-                        ant_edge.nodes[0].name != edge.nodes[1].name)
+                if (  # antecedent property
+                    ant_edge.nodes[1].name == edge.nodes[0].name and
+                    # Not inverse edge
+                    ant_edge.nodes[0].name != edge.nodes[1].name)
             ]
             for edge in self.edges
         ]
-    
+
 ##########################################
 #       Old way of doing it
         # self.antecedant_edges = []  # list of list of edges
@@ -119,12 +124,19 @@ class Graph:
 
             antecedant_edges = self.antecedant_edges[num_edge]
 
+            if not antecedant_edges:
+                print(num_edge, edge)
+                continue
+
             # A message from a variable node v to a factor node f
             # is the product of the messages from all other neighboring factor nodes
             if not edge.F_to_V:
                 # We iterate implicitly on all the possible values of the variable
                 messages = map(lambda e: e.message, antecedant_edges)
-                edge.message = reduce(lambda x, y: x + y, messages, 0)
+                edge.message = reduce(
+                    lambda x, y: x + y,
+                    messages,
+                    np.zeros(edge.nodes[0].nb_states))
 
             # A message from a factor node f to a variable node v
             # is the product of the factor with messages from all other nodes,
@@ -162,13 +174,15 @@ class Graph:
                 # Extracting the messages.
                 # Implicitly parallel for each state of the variable
                 messages = map(lambda e: e.message, incoming_edges)
-                beliefs = reduce(lambda x, y: x + y, messages, 0)
+                beliefs = reduce(lambda x, y: x + y, messages,
+                                 np.zeros(node.nb_states))
                 self.beliefs[name] = np.log(softmax(beliefs))
                 assert np.isclose(np.exp(self.beliefs[name]).sum(), 1)
         return self.beliefs
 
     def max_likelihood(self):
         max_likelihood = list(map(lambda e: max(e), self.beliefs.values()))
+        # maybe 0 > np.zeros()
         return reduce(lambda x, y: x + y, max_likelihood, 0)
 
     def proba_state(self, states, bal_coef=1):
@@ -185,3 +199,15 @@ class Graph:
             coef = bal_coef if states[name] else 1
             log_proba += coef * belief[states[name]]
         return log_proba
+
+    def __repr__(self):
+        print("Use plot method instead.")
+        raise NotImplementedError
+
+    def plot(self):
+        G = nx.Graph()
+        G.add_nodes_from(self.dic_nodes.keys())
+        for edge in self.edges:
+            node1, node2 = edge.nodes
+            G.add_edge(node1.name, node2.name)
+        nx.draw(G, with_labels=True)
