@@ -147,7 +147,7 @@ class Graph:
                 dist = edge.nodes[0].dist
                 dist_index = edge.nodes[0].dist_index
 
-                edge.message = np.zeros_like(edge.message)
+#                 edge.message = np.zeros_like(edge.message)
                 target_name = edge.nodes[1].name
 
                 # TODO : convert dist_index into a dictionnary
