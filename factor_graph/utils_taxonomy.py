@@ -8,8 +8,8 @@ import pandas as pd
 import nevergrad as ng
 from tqdm.notebook import tqdm
 
-from graph import Node, Edge, Graph
-from processing import process_embedding_from_words
+from src.graph import Node, Edge, Graph
+from src.processing import process_embedding_from_words
 
 
 class NoPrint:

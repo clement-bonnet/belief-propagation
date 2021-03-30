@@ -5,7 +5,7 @@ from scipy.special import softmax
 import networkx as nx
 
 
-# TODO : gerer MTT _
+# TODO : handle MTT _
 
 class Node:
     def __init__(self, name, node_type, dist=None, dist_index=None, nb_states=None):
