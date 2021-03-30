@@ -1,6 +1,6 @@
 # Belief Propagation
 
-This repository contains the code for a project on belief propagation as part of the course "Graphical Models: Discrete Inference and Learning" (master MVA).
+This repository contains the code for a project on belief propagation as part of the "Graphical Models: Discrete Inference and Learning" course (master MVA).
 
 We did two experiments to test two implementations of belief propagation:
 - [Bayesian networks](bayesian_network/bayesian_network.ipynb) (wet grass example)
