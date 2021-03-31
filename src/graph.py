@@ -125,7 +125,6 @@ class Graph:
             antecedant_edges = self.antecedant_edges[num_edge]
 
             if not antecedant_edges:
-                print(num_edge, edge)
                 continue
 
             # A message from a variable node v to a factor node f
